@@ -1,0 +1,1646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Observatory — AI Cost Attribution & Routing Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg: #0a0c0f;
+  --bg2: #0f1215;
+  --bg3: #141820;
+  --border: #1e2530;
+  --border2: #2a3445;
+  --text: #c8d0dc;
+  --text2: #6b7a8d;
+  --text3: #3d4a58;
+  --accent: #00d4ff;
+  --accent2: #0099bb;
+  --green: #00e5a0;
+  --green2: #00a870;
+  --red: #ff4757;
+  --red2: #cc2233;
+  --amber: #ffb020;
+  --amber2: #cc8800;
+  --purple: #7c6af7;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 13px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* SCANLINE EFFECT */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* LAYOUT */
+.shell { display: flex; flex-direction: column; min-height: 100vh; }
+
+/* TOPBAR */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  height: 48px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  position: sticky; top: 0; z-index: 100;
+  flex-shrink: 0;
+}
+.topbar-left { display: flex; align-items: center; gap: 16px; }
+.logo {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.logo span { color: var(--text2); font-weight: 400; }
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.status-label { font-family: var(--mono); font-size: 10px; color: var(--text2); letter-spacing: 0.08em; }
+.topbar-right { display: flex; align-items: center; gap: 20px; }
+.live-stat { display: flex; flex-direction: column; align-items: flex-end; }
+.live-stat-val { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--text); }
+.live-stat-label { font-family: var(--mono); font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* NAV */
+.nav {
+  display: flex; align-items: center; gap: 0;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  flex-shrink: 0;
+}
+.nav-tab {
+  padding: 10px 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text2);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* MAIN */
+.main { flex: 1; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+/* PANELS */
+.panel-grid { display: grid; gap: 12px; }
+.g2 { grid-template-columns: 1fr 1fr; }
+.g3 { grid-template-columns: 1fr 1fr 1fr; }
+.g4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+.g13 { grid-template-columns: 1fr 3fr; }
+.g31 { grid-template-columns: 3fr 1fr; }
+
+.panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+}
+.panel-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.panel-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: 1px;
+  background: rgba(0,212,255,0.08);
+  color: var(--accent);
+  border: 1px solid rgba(0,212,255,0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.panel-badge.warn { background: rgba(255,176,32,0.08); color: var(--amber); border-color: rgba(255,176,32,0.2); }
+.panel-badge.alert { background: rgba(255,71,87,0.08); color: var(--red); border-color: rgba(255,71,87,0.2); }
+.panel-badge.ok { background: rgba(0,229,160,0.08); color: var(--green); border-color: rgba(0,229,160,0.2); }
+.panel-body { padding: 14px; }
+
+/* METRIC CARDS */
+.metric-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 14px 16px;
+}
+.metric-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+.metric-value {
+  font-family: var(--mono);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.metric-value.green { color: var(--green); }
+.metric-value.red { color: var(--red); }
+.metric-value.amber { color: var(--amber); }
+.metric-value.accent { color: var(--accent); }
+.metric-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text2);
+}
+.metric-delta {
+  font-family: var(--mono);
+  font-size: 10px;
+  margin-top: 6px;
+  display: flex; align-items: center; gap: 4px;
+}
+.delta-up { color: var(--red); }
+.delta-down { color: var(--green); }
+
+/* TABLE */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 7px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.data-table td {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+/* TAGS */
+.tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 1px;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.tag-accent { background: rgba(0,212,255,0.1); color: var(--accent); border: 1px solid rgba(0,212,255,0.2); }
+.tag-green { background: rgba(0,229,160,0.1); color: var(--green); border: 1px solid rgba(0,229,160,0.2); }
+.tag-red { background: rgba(255,71,87,0.1); color: var(--red); border: 1px solid rgba(255,71,87,0.2); }
+.tag-amber { background: rgba(255,176,32,0.1); color: var(--amber); border: 1px solid rgba(255,176,32,0.2); }
+.tag-purple { background: rgba(124,106,247,0.1); color: var(--purple); border: 1px solid rgba(124,106,247,0.2); }
+.tag-gray { background: rgba(107,122,141,0.1); color: var(--text2); border: 1px solid rgba(107,122,141,0.2); }
+
+/* ROUTING DECISION LOG */
+.decision-entry {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 2px 2px 0;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  background: rgba(0,212,255,0.02);
+}
+.decision-entry.warn { border-left-color: var(--amber); background: rgba(255,176,32,0.02); }
+.decision-entry.ok { border-left-color: var(--green); background: rgba(0,229,160,0.02); }
+.decision-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.decision-model { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); }
+.decision-cost { font-family: var(--mono); font-size: 11px; color: var(--green); }
+.decision-factors { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.factor-row { display: flex; align-items: center; justify-content: space-between; }
+.factor-name { font-family: var(--mono); font-size: 10px; color: var(--text2); }
+.factor-weight { font-family: var(--mono); font-size: 10px; color: var(--text); }
+.factor-bar-wrap { width: 60px; height: 3px; background: var(--border2); border-radius: 2px; margin: 0 6px; overflow: hidden; }
+.factor-bar { height: 100%; background: var(--accent); border-radius: 2px; }
+.decision-reason { font-family: var(--mono); font-size: 10px; color: var(--text2); line-height: 1.6; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px; }
+.rejected-models { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+
+/* WASTE ANALYZER */
+.waste-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.waste-item:last-child { border-bottom: none; }
+.waste-icon {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  background: rgba(255,176,32,0.08);
+  border: 1px solid rgba(255,176,32,0.2);
+  border-radius: 2px;
+}
+.waste-body { flex: 1; }
+.waste-title { font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+.waste-desc { font-family: var(--mono); font-size: 10px; color: var(--text2); line-height: 1.5; }
+.waste-saving { font-family: var(--mono); font-size: 11px; color: var(--green); font-weight: 600; margin-top: 4px; }
+
+/* INCIDENT PANEL */
+.incident-selector { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.inc-btn {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 6px 12px;
+  border: 1px solid var(--border2);
+  background: var(--bg3);
+  color: var(--text2);
+  cursor: pointer;
+  border-radius: 1px;
+  transition: all 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.inc-btn:hover { border-color: var(--amber); color: var(--amber); }
+.inc-btn.active { border-color: var(--amber); background: rgba(255,176,32,0.08); color: var(--amber); }
+.incident-display { display: none; }
+.incident-display.active { display: block; }
+.inc-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: rgba(255,71,87,0.06);
+  border: 1px solid rgba(255,71,87,0.2);
+  border-radius: 2px;
+  margin-bottom: 12px;
+}
+.inc-severity { font-family: var(--mono); font-size: 9px; font-weight: 600; color: var(--red); text-transform: uppercase; letter-spacing: 0.1em; }
+.inc-title { font-size: 13px; font-weight: 500; color: var(--text); }
+.inc-time { font-family: var(--mono); font-size: 10px; color: var(--text2); margin-left: auto; }
+.failover-steps { display: flex; flex-direction: column; gap: 6px; }
+.failover-step {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--bg3);
+}
+.step-num {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  color: var(--accent); min-width: 18px;
+}
+.step-text { font-family: var(--mono); font-size: 11px; color: var(--text2); line-height: 1.5; }
+.step-text strong { color: var(--text); font-weight: 600; }
+.impact-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 12px; }
+.impact-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 2px; padding: 10px 12px; }
+.impact-label { font-family: var(--mono); font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.impact-val { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--amber); }
+.impact-sub { font-family: var(--mono); font-size: 9px; color: var(--text2); margin-top: 2px; }
+
+/* CHART WRAPPER */
+.chart-wrap { position: relative; width: 100%; }
+
+/* OPTIMIZATION RECS */
+.rec-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.rec-item:last-child { border-bottom: none; }
+.rec-priority {
+  font-family: var(--mono); font-size: 9px; font-weight: 600;
+  padding: 3px 7px; border-radius: 1px;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  flex-shrink: 0; margin-top: 2px;
+}
+.p1 { background: rgba(255,71,87,0.12); color: var(--red); border: 1px solid rgba(255,71,87,0.25); }
+.p2 { background: rgba(255,176,32,0.12); color: var(--amber); border: 1px solid rgba(255,176,32,0.25); }
+.p3 { background: rgba(0,212,255,0.08); color: var(--accent); border: 1px solid rgba(0,212,255,0.2); }
+.rec-body { flex: 1; }
+.rec-title { font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 3px; }
+.rec-detail { font-family: var(--mono); font-size: 10px; color: var(--text2); line-height: 1.6; }
+.rec-saving { font-family: var(--mono); font-size: 12px; color: var(--green); font-weight: 600; margin-top: 5px; }
+
+/* GOVERNANCE ALERTS */
+.alert-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  margin-bottom: 6px;
+  background: var(--bg3);
+}
+.alert-item:last-child { margin-bottom: 0; }
+.alert-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+.ad-red { background: var(--red); box-shadow: 0 0 6px rgba(255,71,87,0.5); }
+.ad-amber { background: var(--amber); box-shadow: 0 0 6px rgba(255,176,32,0.4); }
+.ad-green { background: var(--green); box-shadow: 0 0 6px rgba(0,229,160,0.4); }
+.alert-content { flex: 1; }
+.alert-title { font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+.alert-desc { font-family: var(--mono); font-size: 10px; color: var(--text2); }
+.alert-time { font-family: var(--mono); font-size: 9px; color: var(--text3); flex-shrink: 0; }
+
+/* VENDOR TABLE SPECIFICS */
+.bar-cell { display: flex; align-items: center; gap: 8px; }
+.mini-bar { height: 4px; border-radius: 2px; }
+
+/* AI REPORT */
+.ai-report-box {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 2px 2px 0;
+  padding: 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.8;
+  white-space: pre-wrap;
+  max-height: 500px;
+  overflow-y: auto;
+}
+.run-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  padding: 9px 18px;
+  background: rgba(0,212,255,0.08);
+  border: 1px solid rgba(0,212,255,0.3);
+  color: var(--accent);
+  cursor: pointer;
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  transition: all 0.15s;
+}
+.run-btn:hover { background: rgba(0,212,255,0.15); border-color: var(--accent); }
+.run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.spinner { width: 12px; height: 12px; border: 2px solid rgba(0,212,255,0.3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* SECTION HIDDEN */
+.section { display: none; }
+.section.active { display: flex; flex-direction: column; gap: 16px; }
+
+/* FINANCE MODE TOGGLE */
+.mode-toggle {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 10px; color: var(--text2);
+  cursor: pointer;
+}
+.toggle-track {
+  width: 32px; height: 16px; background: var(--border2);
+  border-radius: 8px; position: relative; transition: background 0.2s;
+}
+.toggle-track.on { background: var(--accent2); }
+.toggle-thumb {
+  width: 12px; height: 12px;
+  background: var(--text2); border-radius: 50%;
+  position: absolute; top: 2px; left: 2px;
+  transition: left 0.2s, background 0.2s;
+}
+.toggle-track.on .toggle-thumb { left: 18px; background: #fff; }
+
+/* FINANCE PANEL */
+.fin-panel { display: none; }
+.fin-panel.visible { display: block; }
+
+@media (max-width: 900px) {
+  .g2,.g3,.g4,.g13,.g31 { grid-template-columns: 1fr; }
+  .decision-factors { grid-template-columns: 1fr; }
+  .impact-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">LLM <span>/</span> Observatory</div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div class="status-dot"></div>
+      <div class="status-label">Live · 30d window</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="live-stat">
+      <div class="live-stat-val" id="hdr-spend">$0.00</div>
+      <div class="live-stat-label">30d spend</div>
+    </div>
+    <div style="width:1px;height:28px;background:var(--border)"></div>
+    <div class="live-stat">
+      <div class="live-stat-val" id="hdr-calls">0</div>
+      <div class="live-stat-label">API calls</div>
+    </div>
+    <div style="width:1px;height:28px;background:var(--border)"></div>
+    <div class="live-stat" id="hdr-saving-wrap">
+      <div class="live-stat-val green" id="hdr-saving">$0.00</div>
+      <div class="live-stat-label">routing opportunity</div>
+    </div>
+    <div style="width:1px;height:28px;background:var(--border)"></div>
+    <div class="mode-toggle" onclick="toggleFinance()" title="Finance Mode">
+      <div class="toggle-track" id="fin-toggle"></div>
+      <span>Finance mode</span>
+    </div>
+  </div>
+</div>
+
+<!-- NAV -->
+<div class="nav">
+  <div class="nav-tab active" onclick="showSection('attribution')">Cost Attribution</div>
+  <div class="nav-tab" onclick="showSection('routing')">Routing Engine</div>
+  <div class="nav-tab" onclick="showSection('waste')">Prompt Waste</div>
+  <div class="nav-tab" onclick="showSection('vendor')">Vendor Intelligence</div>
+  <div class="nav-tab" onclick="showSection('governance')">Governance</div>
+  <div class="nav-tab" onclick="showSection('incident')">Incident Sim</div>
+  <div class="nav-tab" onclick="showSection('optimize')">Optimization</div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+<!-- ══════════════════════════════════════
+     SECTION: COST ATTRIBUTION
+══════════════════════════════════════ -->
+<div class="section active" id="s-attribution">
+
+  <!-- Finance panel -->
+  <div class="fin-panel" id="fin-attribution">
+    <div class="panel-grid g4">
+      <div class="metric-card">
+        <div class="metric-label">Monthly burn rate</div>
+        <div class="metric-value amber">$41,280</div>
+        <div class="metric-sub">annualised: $495,360</div>
+        <div class="metric-delta delta-up">↑ 18% MoM</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Marginal inference cost</div>
+        <div class="metric-value accent">$0.0043</div>
+        <div class="metric-sub">per API call blended avg</div>
+        <div class="metric-delta delta-down">↓ 12% vs last month</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Committed-use utilisation</div>
+        <div class="metric-value green">84%</div>
+        <div class="metric-sub">of $30K committed spend</div>
+        <div class="metric-delta delta-down">↓ 4% underrun risk</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Variance vs budget</div>
+        <div class="metric-value red">+$6,280</div>
+        <div class="metric-sub">12.4% over Q2 AI budget</div>
+        <div class="metric-delta delta-up">↑ Algo-Research primary driver</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-grid g4">
+    <div class="metric-card">
+      <div class="metric-label">Total API spend · 30d</div>
+      <div class="metric-value" id="m-total">$41,280</div>
+      <div class="metric-sub" id="m-calls">9,600 calls · 14 providers</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Tokens consumed</div>
+      <div class="metric-value accent" id="m-tokens">2.4B</div>
+      <div class="metric-sub">1.6B input · 0.8B output</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Routing savings available</div>
+      <div class="metric-value green" id="m-saving">$11,340</div>
+      <div class="metric-sub">27.5% of current spend</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Avg cost per call</div>
+      <div class="metric-value amber" id="m-avg">$0.0043</div>
+      <div class="metric-sub">↑ 18% vs prior 30d</div>
+    </div>
+  </div>
+
+  <div class="panel-grid g2">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Spend by team · attribution</div>
+        <div class="panel-badge">30-day window</div>
+      </div>
+      <div class="panel-body">
+        <div class="chart-wrap" style="height:220px">
+          <canvas id="teamChart" role="img" aria-label="Bar chart of API spend by team"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Spend by model</div>
+        <div class="panel-badge">cost share</div>
+      </div>
+      <div class="panel-body">
+        <div class="chart-wrap" style="height:220px">
+          <canvas id="modelChart" role="img" aria-label="Doughnut chart of spend by model"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Team-level cost attribution · chargeback view</div>
+      <div class="panel-badge">per-call unit economics</div>
+    </div>
+    <div class="panel-body" style="padding:0">
+      <table class="data-table">
+        <thead><tr>
+          <th>Team</th><th>Cost centre</th><th>Calls</th>
+          <th>Tokens in</th><th>Tokens out</th>
+          <th>30d spend</th><th>% of total</th>
+          <th>$/call</th><th>WoW trend</th><th>Status</th>
+        </tr></thead>
+        <tbody id="teamTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Weekly spend trend · anomaly overlay</div>
+      <div class="panel-badge warn">spike detected</div>
+    </div>
+    <div class="panel-body">
+      <div class="chart-wrap" style="height:180px">
+        <canvas id="trendChart" role="img" aria-label="Line chart of weekly spend trend with anomaly markers"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     SECTION: ROUTING ENGINE
+══════════════════════════════════════ -->
+<div class="section" id="s-routing">
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Routing decision engine · weighted multi-factor scoring</div>
+      <div class="panel-badge">live decisions</div>
+    </div>
+    <div class="panel-body">
+      <div style="margin-bottom:14px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:2px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.8">
+          Routing decisions are computed using a weighted multi-factor scoring model across four operational dimensions.
+          Each inbound request is scored per candidate model; the highest-scoring eligible model is selected.
+          Rejected alternatives and confidence scores are logged for auditability.
+        </div>
+        <div class="panel-grid g4" style="margin-top:12px">
+          <div style="text-align:center">
+            <div style="font-family:var(--mono);font-size:18px;font-weight:600;color:var(--accent)">35%</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:2px">Reasoning complexity</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-family:var(--mono);font-size:18px;font-weight:600;color:var(--purple)">25%</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:2px">Context size</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-family:var(--mono);font-size:18px;font-weight:600;color:var(--green)">20%</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:2px">Latency sensitivity</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-family:var(--mono);font-size:18px;font-weight:600;color:var(--amber)">20%</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:2px">Cost sensitivity</div>
+          </div>
+        </div>
+      </div>
+      <div id="decisionLog"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Routing opportunity matrix · by use-case</div>
+      <div class="panel-badge ok">$11,340 recoverable</div>
+    </div>
+    <div class="panel-body" style="padding:0">
+      <table class="data-table">
+        <thead><tr>
+          <th>Use case</th><th>Current model</th><th>Calls/month</th>
+          <th>Avg tokens in</th><th>Avg tokens out</th>
+          <th>Current spend</th><th>Recommended</th><th>Saving</th><th>Confidence</th>
+        </tr></thead>
+        <tbody id="routingTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     SECTION: PROMPT WASTE
+══════════════════════════════════════ -->
+<div class="section" id="s-waste">
+
+  <div class="panel-grid g4">
+    <div class="metric-card">
+      <div class="metric-label">Wasted tokens · 30d</div>
+      <div class="metric-value red">340M</div>
+      <div class="metric-sub">14% of total consumption</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Waste cost · 30d</div>
+      <div class="metric-value amber">$8,740</div>
+      <div class="metric-sub">annualised: $104,880</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Recoverable via caching</div>
+      <div class="metric-value green">$4,200</div>
+      <div class="metric-sub">prompt cache at 90% discount</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Avg context retention</div>
+      <div class="metric-value amber">28K</div>
+      <div class="metric-sub">target: 10–12K tokens</div>
+    </div>
+  </div>
+
+  <div class="panel-grid g2">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Waste pattern analysis · detected inefficiencies</div>
+        <div class="panel-badge warn">5 patterns active</div>
+      </div>
+      <div class="panel-body">
+        <div id="wasteList"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Token efficiency by team</div>
+        <div class="panel-badge">output/input ratio</div>
+      </div>
+      <div class="panel-body">
+        <div class="chart-wrap" style="height:260px">
+          <canvas id="efficiencyChart" role="img" aria-label="Horizontal bar chart of token efficiency by team"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Context window utilisation · distribution</div>
+      <div class="panel-badge warn">38% of calls over-provisioned</div>
+    </div>
+    <div class="panel-body">
+      <div class="chart-wrap" style="height:160px">
+        <canvas id="contextChart" role="img" aria-label="Bar chart of context window utilisation distribution"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     SECTION: VENDOR INTELLIGENCE
+══════════════════════════════════════ -->
+<div class="section" id="s-vendor">
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Vendor comparison matrix · full economics</div>
+      <div class="panel-badge">real pricing · May 2026</div>
+    </div>
+    <div class="panel-body" style="padding:0">
+      <table class="data-table">
+        <thead><tr>
+          <th>Model</th><th>Provider</th>
+          <th>Input ($/1M tok)</th><th>Output ($/1M tok)</th>
+          <th>Context window</th><th>Cached input</th>
+          <th>Avg latency</th><th>P99 latency</th>
+          <th>Proj. monthly burn</th><th>Best for</th>
+        </tr></thead>
+        <tbody id="vendorTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel-grid g2">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Cost per 1M tokens · input vs output</div>
+        <div class="panel-badge">pricing asymmetry view</div>
+      </div>
+      <div class="panel-body">
+        <div class="chart-wrap" style="height:240px">
+          <canvas id="vendorCostChart" role="img" aria-label="Grouped bar chart of input vs output costs per provider"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Latency vs cost efficiency</div>
+        <div class="panel-badge">throughput trade-off</div>
+      </div>
+      <div class="panel-body">
+        <div class="chart-wrap" style="height:240px">
+          <canvas id="latencyChart" role="img" aria-label="Scatter chart of latency vs cost efficiency by model"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     SECTION: GOVERNANCE
+══════════════════════════════════════ -->
+<div class="section" id="s-governance">
+
+  <div class="panel-grid g2">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Governance alerts · live feed</div>
+        <div class="panel-badge alert">3 critical</div>
+      </div>
+      <div class="panel-body" id="alertList"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Model proliferation · governance risk</div>
+        <div class="panel-badge warn">8 models active</div>
+      </div>
+      <div class="panel-body">
+        <div style="margin-bottom:12px;font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.7">
+          8 distinct models in active production use across 6 teams. High model proliferation increases
+          governance overhead, complicates SLA tracking, and inflates vendor management surface.
+          Target: consolidate to 3 primary models with approved exceptions.
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Model</th><th>Teams</th><th>Monthly calls</th><th>Spend</th><th>Status</th></tr></thead>
+          <tbody id="prolifBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">API key audit · access governance</div>
+      <div class="panel-badge alert">2 stale keys</div>
+    </div>
+    <div class="panel-body" style="padding:0">
+      <table class="data-table">
+        <thead><tr>
+          <th>Key ID</th><th>Owner</th><th>Team</th><th>Last used</th><th>30d calls</th><th>30d spend</th><th>Status</th><th>Action</th>
+        </tr></thead>
+        <tbody id="keyAuditBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- AI Governance Report -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">AI governance briefing · executive report</div>
+      <div class="panel-badge">powered by claude sonnet</div>
+    </div>
+    <div class="panel-body">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:12px;line-height:1.7">
+        Generates a structured governance briefing from live attribution data — formatted for CTO / Head of AI review.
+        Findings are numbered, quantified, and include specific recommendations with dollar impact.
+      </div>
+      <button class="run-btn" id="reportBtn" onclick="runGovernanceReport()">
+        <span id="reportBtnIcon">▶</span> Generate governance report
+      </button>
+      <div id="reportOutput" style="margin-top:14px"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     SECTION: INCIDENT SIMULATION
+══════════════════════════════════════ -->
+<div class="section" id="s-incident">
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Incident simulation · failover routing & business impact</div>
+      <div class="panel-badge warn">simulation mode</div>
+    </div>
+    <div class="panel-body">
+      <div class="incident-selector">
+        <button class="inc-btn active" onclick="showIncident('outage', this)">OpenAI outage</button>
+        <button class="inc-btn" onclick="showIncident('latency', this)">Anthropic latency spike</button>
+        <button class="inc-btn" onclick="showIncident('budget', this)">Budget threshold breach</button>
+        <button class="inc-btn" onclick="showIncident('spike', this)">Token spike anomaly</button>
+        <button class="inc-btn" onclick="showIncident('context', this)">Context overflow risk</button>
+      </div>
+      <div id="incidentDisplay"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     SECTION: OPTIMIZATION
+══════════════════════════════════════ -->
+<div class="section" id="s-optimize">
+
+  <div class="panel-grid g4">
+    <div class="metric-card">
+      <div class="metric-label">Total recoverable · annual</div>
+      <div class="metric-value green">$186,480</div>
+      <div class="metric-sub">across all recommendations</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Routing optimisation</div>
+      <div class="metric-value green">$136,080</div>
+      <div class="metric-sub">model routing changes</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Prompt efficiency</div>
+      <div class="metric-value amber">$50,400</div>
+      <div class="metric-sub">caching + context trim</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Implementation effort</div>
+      <div class="metric-value accent">6–8 wks</div>
+      <div class="metric-sub">phased rollout</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Optimisation recommendations · prioritised by annual impact</div>
+      <div class="panel-badge ok">8 recommendations</div>
+    </div>
+    <div class="panel-body" id="recList"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Projected spend trajectory · with vs without optimisation</div>
+      <div class="panel-badge">12-month forecast</div>
+    </div>
+    <div class="panel-body">
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="forecastChart" role="img" aria-label="Line chart of projected spend with and without optimization"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</div><!-- /main -->
+</div><!-- /shell -->
+
+<script>
+// ═══════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════
+const TEAMS = [
+  {name:'algo-research', cc:'CC-001', calls:3200, tin:680, tout:320, spend:18400, wow:+22, status:'over'},
+  {name:'risk-ops',      cc:'CC-002', calls:2100, tin:420, tout:180, spend:9800,  wow:+8,  status:'normal'},
+  {name:'market-data',   cc:'CC-003', calls:1800, tin:380, tout:140, spend:6200,  wow:-3,  status:'normal'},
+  {name:'execution',     cc:'CC-004', calls:1400, tin:210, tout:85,  spend:4100,  wow:+5,  status:'normal'},
+  {name:'compliance',    cc:'CC-005', calls:700,  tin:290, tout:95,  spend:2180,  wow:+11, status:'watch'},
+  {name:'market-intel',  cc:'CC-006', calls:400,  tin:160, tout:70,  spend:600,   wow:-12, status:'normal'},
+];
+
+const VENDORS = [
+  {model:'claude-opus-4',    provider:'Anthropic', in:15,    out:75,   cache:1.5,  ctx:'200K', lat:3200, p99:5800, burn:14200, tag:'complex-reasoning'},
+  {model:'claude-sonnet-4',  provider:'Anthropic', in:3,     out:15,   cache:0.3,  ctx:'200K', lat:1400, p99:2600, burn:8400,  tag:'balanced-workloads'},
+  {model:'claude-haiku-3.5', provider:'Anthropic', in:0.8,   out:4,    cache:0.08, ctx:'200K', lat:480,  p99:900,  burn:2100,  tag:'classification/tagging'},
+  {model:'gpt-4.1',          provider:'OpenAI',    in:2,     out:8,    cache:0.5,  ctx:'128K', lat:1800, p99:3400, burn:9800,  tag:'general-purpose'},
+  {model:'gpt-4.1-mini',     provider:'OpenAI',    in:0.4,   out:1.6,  cache:0.1,  ctx:'128K', lat:620,  p99:1100, burn:1800,  tag:'low-complexity'},
+  {model:'gemini-1.5-pro',   provider:'Google',    in:1.25,  out:5,    cache:0.3125,ctx:'1M', lat:2100, p99:4200, burn:3200,  tag:'long-context'},
+  {model:'gemini-1.5-flash', provider:'Google',    in:0.075, out:0.3,  cache:null, ctx:'1M',  lat:380,  p99:700,  burn:900,   tag:'high-volume/fast'},
+  {model:'mistral-large',    provider:'Mistral',   in:3,     out:9,    cache:null, ctx:'128K', lat:1600, p99:3000, burn:2880,  tag:'European-compliance'},
+];
+
+const ROUTING_DECISIONS = [
+  {
+    model:'claude-sonnet-4', rejected:['claude-opus-4','gpt-4.1'],
+    cost:'$0.0038', confidence:91,
+    factors:{reasoning:62, context:58, latency:75, cost:88},
+    reason:'180K context requirement exceeded GPT-4.1 limit (128K). Claude Opus-4 scored higher on reasoning (94 vs 62) but cost sensitivity weighted against it — 31% lower projected cost on claude-sonnet-4 at equivalent task requirements. Latency within SLA bounds (1,400ms vs 1,200ms target).',
+    usecase:'Strategy research synthesis', team:'algo-research', type:'ok'
+  },
+  {
+    model:'claude-haiku-3.5', rejected:['claude-sonnet-4','gpt-4.1'],
+    cost:'$0.00041', confidence:97,
+    factors:{reasoning:18, context:12, latency:92, cost:96},
+    reason:'Order classification task: low reasoning depth (score 18/100), short context (<400 tokens), latency-critical (sub-500ms SLA). Claude Haiku-3.5 selected — 94% cheaper per call than Sonnet, P99 latency 900ms within bounds. Estimated monthly saving vs current routing: $2,840.',
+    usecase:'Order classification · execution', team:'execution', type:'ok'
+  },
+  {
+    model:'claude-opus-4', rejected:['claude-sonnet-4','gpt-4.1'],
+    cost:'$0.0284', confidence:84,
+    factors:{reasoning:96, context:78, latency:42, cost:22},
+    reason:'Multi-document PnL attribution requiring cross-reference reasoning across 12 reports. Reasoning complexity score 96/100 — threshold for Opus-4 selection. Cost sensitivity low (internal research workload, latency non-critical). Sonnet-4 rejected due to insufficient reasoning score (74 vs 80 threshold).',
+    usecase:'PnL attribution · risk-ops', team:'risk-ops', type:'warn'
+  },
+  {
+    model:'gemini-1.5-flash', rejected:['gpt-4.1-mini','claude-haiku-3.5'],
+    cost:'$0.00018', confidence:93,
+    factors:{reasoning:14, context:8, latency:98, cost:99},
+    reason:'Market alert tagging: structured classification, 8 token output, 2,000 req/min throughput requirement. Gemini-1.5-flash selected — lowest cost-per-token at this volume, highest throughput ceiling. Estimated annual saving vs GPT-4.1-mini: $24,600 at current call volume.',
+    usecase:'Alert tagging · market-data', team:'market-data', type:'ok'
+  },
+];
+
+const ROUTING_OPS = [
+  {usecase:'Compliance screening',    current:'claude-opus-4',  calls:420,  avgin:680,  avgout:180, spend:8820,  rec:'claude-sonnet-4',  saving:7350, conf:'HIGH'},
+  {usecase:'Market summarisation',    current:'gpt-4.1',        calls:680,  avgin:920,  avgout:340, spend:6800,  rec:'gemini-1.5-flash', saving:6630, conf:'HIGH'},
+  {usecase:'Data extraction',         current:'claude-opus-4',  calls:310,  avgin:420,  avgout:95,  spend:4960,  rec:'claude-haiku-3.5', saving:4650, conf:'HIGH'},
+  {usecase:'Alert classification',    current:'gpt-4.1-mini',   calls:1200, avgin:180,  avgout:40,  spend:1020,  rec:'gemini-1.5-flash', saving:870,  conf:'MED'},
+  {usecase:'Reconciliation matching', current:'gpt-4.1',        calls:240,  avgin:1100, avgout:280, spend:3480,  rec:'claude-sonnet-4',  saving:2700, conf:'MED'},
+  {usecase:'Report generation',       current:'claude-opus-4',  calls:180,  avgin:2200, avgout:800, spend:8640,  rec:'claude-sonnet-4',  saving:7776, conf:'HIGH'},
+];
+
+const WASTE_PATTERNS = [
+  {icon:'⟳', title:'Duplicate retrieval chunks in context', desc:'342 calls/day include repeated document segments injected by retrieval pipeline. Average 1,800 duplicate tokens per call.', saving:'Recoverable: $3,240/month — deduplicate at retrieval layer before context assembly.'},
+  {icon:'↔', title:'Oversized system prompt repetition', desc:'14 API keys transmitting system prompts >3,000 tokens on every request. Static content should be cached — current cache hit rate: 0%.', saving:'Recoverable: $2,100/month via Anthropic prompt caching (90% discount on cached tokens).'},
+  {icon:'📜', title:'Excessive conversation replay', desc:'Risk-ops team replaying full conversation history (avg 28K tokens) on each turn. Effective context utilisation: 18% on final turns.', saving:'Recoverable: $1,800/month via sliding window truncation (retain last 8K tokens + summary).'},
+  {icon:'⚡', title:'Premium model on trivial outputs', desc:'186 calls/day on claude-opus-4 returning <150 output tokens. Avg output: 82 tokens. Reasoning capacity significantly over-provisioned for task complexity.', saving:'Recoverable: $2,240/month — reroute to claude-haiku-3.5 for sub-200-token outputs.'},
+  {icon:'🔍', title:'Poor retrieval truncation policy', desc:'RAG pipeline injecting top-20 chunks without relevance threshold filter. 40–60% of injected context estimated irrelevant. No truncation applied at context boundary.', saving:'Recoverable: $1,680/month — apply relevance score cutoff ≥0.72, cap at top-8 chunks.'},
+];
+
+const ALERTS = [
+  {sev:'red',   title:'Budget threshold breach · algo-research', desc:'30d spend $18,400 — 22.6% over Q2 AI budget allocation ($15,000). Primary driver: 34% increase in claude-opus-4 calls for strategy synthesis workloads.', time:'2h ago'},
+  {sev:'red',   title:'Stale API key detected · CC-003', desc:'Key ak_mkt_legacy_01 last used 47 days ago. 0 calls in 30d. Active credentials pose unnecessary attack surface — recommend immediate revocation.', time:'1d ago'},
+  {sev:'red',   title:'Model not on approved vendor list · compliance', desc:'mistral-large-2407 detected in compliance team workloads. Model not on approved vendor list — data governance and jurisdiction controls unverified.', time:'3d ago'},
+  {sev:'amber', title:'Committed-use underrun risk · Anthropic', desc:'$30K committed spend with Anthropic. Current 30d utilisation: 84% ($25,200). At this trajectory, $4,800 underrun in Q2 — committed credits non-refundable.', time:'5d ago'},
+  {sev:'amber', title:'Token spike anomaly · risk-ops · Tue 06 May', desc:'Risk-ops token consumption 3.4× above 7-day average between 14:00–16:30 IST. Correlated with unscheduled batch PnL reprocessing job. No budget approval on record.', time:'6d ago'},
+  {sev:'green', title:'Routing policy update applied', desc:'Execution team order classification workloads successfully migrated from gpt-4.1 to claude-haiku-3.5. Estimated saving: $2,840/month. Latency within SLA bounds.', time:'7d ago'},
+];
+
+const PROLIF_DATA = [
+  {model:'claude-sonnet-4',  teams:4, calls:3100, spend:12800, status:'approved'},
+  {model:'gpt-4.1',          teams:3, calls:2400, spend:9200,  status:'approved'},
+  {model:'claude-opus-4',    teams:3, calls:1100, spend:14200, status:'approved'},
+  {model:'claude-haiku-3.5', teams:2, calls:1800, spend:2100,  status:'approved'},
+  {model:'gemini-1.5-flash', teams:2, calls:2200, spend:900,   status:'approved'},
+  {model:'gpt-4.1-mini',     teams:2, calls:1200, spend:1800,  status:'approved'},
+  {model:'gemini-1.5-pro',   teams:1, calls:400,  spend:3200,  status:'review'},
+  {model:'mistral-large',    teams:1, calls:280,  spend:2880,  status:'flagged'},
+];
+
+const KEY_AUDIT = [
+  {id:'ak_algo_prod_01',    owner:'R. Sharma',    team:'algo-research', last:'Today',    calls:3200, spend:18400, status:'active'},
+  {id:'ak_risk_prod_01',    owner:'P. Nair',      team:'risk-ops',      last:'Today',    calls:2100, spend:9800,  status:'active'},
+  {id:'ak_mkt_legacy_01',   owner:'[unassigned]', team:'market-data',   last:'47d ago',  calls:0,    spend:0,     status:'stale'},
+  {id:'ak_exec_prod_01',    owner:'A. Kumar',     team:'execution',     last:'Today',    calls:1400, spend:4100,  status:'active'},
+  {id:'ak_comp_prod_01',    owner:'S. Iyer',      team:'compliance',    last:'Yesterday',calls:700,  spend:2180,  status:'active'},
+  {id:'ak_test_dev_03',     owner:'Dev sandbox',  team:'engineering',   last:'62d ago',  calls:0,    spend:0,     status:'stale'},
+];
+
+const INCIDENTS = {
+  outage: {
+    sev:'P1 · CRITICAL',
+    title:'OpenAI complete service outage — gpt-4.1 / gpt-4.1-mini unavailable',
+    time:'Simulated: 09:14 IST',
+    steps:[
+      {n:'01', text:'<strong>Detection:</strong> Health check failures on api.openai.com — 5xx responses on all model endpoints. Circuit breaker triggered after 3 consecutive failures.'},
+      {n:'02', text:'<strong>Immediate routing:</strong> All gpt-4.1 workloads rerouted to claude-sonnet-4 (primary failover). Routing table update propagated in <2s.'},
+      {n:'03', text:'<strong>gpt-4.1-mini failover:</strong> Low-complexity workloads rerouted to claude-haiku-3.5 and gemini-1.5-flash based on throughput requirements.'},
+      {n:'04', text:'<strong>Context window check:</strong> 3 workloads flagged — context >128K (GPT limit). These were already on Anthropic/Google endpoints — no action required.'},
+      {n:'05', text:'<strong>Committed-use alert:</strong> OpenAI outage creates underrun risk on $12K committed spend. Finance team notified. SLA review with OpenAI CSM initiated.'},
+      {n:'06', text:'<strong>Vendor notification:</strong> OpenAI status.openai.com incident acknowledged. ETA: 45–90 minutes. Incident ticket raised for SLA credit claim.'},
+    ],
+    impact:[
+      {label:'Affected calls/hr', val:'~620', sub:'gpt-4.1 + mini combined'},
+      {label:'Cost delta (failover)', val:'+$0.0012', sub:'per call on Anthropic vs OpenAI'},
+      {label:'Estimated SLA credit', val:'$1,800', sub:'based on 2hr downtime at committed rate'},
+    ]
+  },
+  latency: {
+    sev:'P2 · HIGH',
+    title:'Anthropic claude-sonnet-4 P99 latency degradation — 4.2× above baseline',
+    time:'Simulated: 14:32 IST',
+    steps:[
+      {n:'01', text:'<strong>Detection:</strong> P99 latency on claude-sonnet-4 elevated to 11,200ms (baseline: 2,600ms). Threshold breach at 5,000ms triggers alert.'},
+      {n:'02', text:'<strong>Triage:</strong> Latency-sensitive workloads (execution team, <500ms SLA) immediately rerouted to gemini-1.5-flash. 340 calls/hr affected.'},
+      {n:'03', text:'<strong>Non-latency workloads held:</strong> Research synthesis, compliance screening — latency tolerant (SLA >5s). No rerouting. Cost optimisation preserved.'},
+      {n:'04', text:'<strong>Monitoring escalation:</strong> 5-minute rolling P99 tracked. Automated rollback to sonnet-4 if P99 returns below 3,000ms.'},
+    ],
+    impact:[
+      {label:'Affected teams', val:'1 of 6', sub:'execution (SLA-critical)'},
+      {label:'Cost delta (reroute)', val:'+$0.00031', sub:'flash vs sonnet per call'},
+      {label:'Duration estimate', val:'25 min', sub:'based on Anthropic status feed'},
+    ]
+  },
+  budget: {
+    sev:'P2 · HIGH',
+    title:'Monthly AI budget threshold breached — algo-research at 122% of allocation',
+    time:'Simulated: 11:08 IST',
+    steps:[
+      {n:'01', text:'<strong>Detection:</strong> algo-research 30d spend crossed $18,000 threshold (120% of $15K allocation). Automated alert dispatched to team lead and finance.'},
+      {n:'02', text:'<strong>Spend freeze — non-critical:</strong> Non-production inference (dev/test workloads) soft-capped. Prod workloads continue with enhanced monitoring.'},
+      {n:'03', text:'<strong>Root cause:</strong> Unscheduled batch reprocessing of 6-month strategy corpus on claude-opus-4. 840 calls, avg 3,200 tokens in, 1,100 out. Not in monthly plan.'},
+      {n:'04', text:'<strong>Corrective routing:</strong> Future batch jobs of this type routed to claude-sonnet-4 by default unless explicitly approved. Estimated saving: $4,200 on next equivalent run.'},
+      {n:'05', text:'<strong>Budget revision:</strong> Q2 AI budget reforecast requested. Finance review scheduled. Committed-use thresholds updated.'},
+    ],
+    impact:[
+      {label:'Overspend · 30d', val:'$3,400', sub:'22.7% over allocation'},
+      {label:'Projected Q2 overrun', val:'$8,200', sub:'at current trajectory'},
+      {label:'Corrective saving', val:'$4,200', sub:'batch job rerouting'},
+    ]
+  },
+  spike: {
+    sev:'P2 · HIGH',
+    title:'Token consumption anomaly — risk-ops 3.4× above 7-day baseline',
+    time:'Simulated: 16:44 IST',
+    steps:[
+      {n:'01', text:'<strong>Detection:</strong> risk-ops token consumption 3.4× above 7-day rolling average between 14:00–16:30 IST. Anomaly detection threshold: 2.5×.'},
+      {n:'02', text:'<strong>Attribution:</strong> Spike traced to unscheduled batch PnL reprocessing job (job_id: rsk_batch_0506). No budget approval on record for this run.'},
+      {n:'03', text:'<strong>Immediate action:</strong> Job flagged for review. Team lead notified. Spend attribution logged to risk-ops CC-002 for chargeback.'},
+      {n:'04', text:'<strong>Process gap:</strong> Batch inference jobs >$500 estimated cost require pre-approval. This job estimated at $1,840. Approval workflow was bypassed.'},
+      {n:'05', text:'<strong>Control update:</strong> Soft budget guard added to batch job scheduler — jobs above $500 threshold require explicit override with reason code.'},
+    ],
+    impact:[
+      {label:'Spike tokens', val:'82M', sub:'vs 24M 7-day avg'},
+      {label:'Unplanned spend', val:'$1,840', sub:'single batch run'},
+      {label:'Control gap', val:'Approval bypass', sub:'workflow updated'},
+    ]
+  },
+  context: {
+    sev:'P3 · MEDIUM',
+    title:'Context overflow risk — 28 active workloads approaching model context limits',
+    time:'Simulated: ongoing',
+    steps:[
+      {n:'01', text:'<strong>Detection:</strong> 28 workloads with rolling average context >80% of model limit. Risk-ops research workflows averaging 102K tokens on claude-opus-4 (200K limit).'},
+      {n:'02', text:'<strong>Risk assessment:</strong> At current growth rate (18% MoM), 6 workloads projected to hit hard context limit within 14 days. Overflow = silent truncation or API error.'},
+      {n:'03', text:'<strong>Immediate mitigation:</strong> Sliding window truncation recommended — retain last 12K tokens + rolling summary. Retrieval pipeline to inject on-demand rather than full corpus.'},
+      {n:'04', text:'<strong>Model routing option:</strong> Gemini-1.5-pro offers 1M context window for extreme cases. Cost trade-off acceptable for long-document research workloads.'},
+    ],
+    impact:[
+      {label:'At-risk workloads', val:'28', sub:'80–95% context utilisation'},
+      {label:'Days to overflow', val:'~14', sub:'at current growth rate'},
+      {label:'Mitigation cost', val:'–$3,200/mo', sub:'via context trimming'},
+    ]
+  }
+};
+
+const RECS = [
+  {p:'p1', title:'Migrate summarisation workloads from gpt-4.1 to gemini-1.5-flash', detail:'680 calls/month on gpt-4.1 for market summarisation. Average 920 tokens in, 340 out. Gemini-1.5-flash is cost-equivalent on quality benchmarks for this task class and 97% cheaper at this token range. Requires retrieval pipeline update to handle 1M context window.', saving:'Annual saving: $79,560'},
+  {p:'p1', title:'Migrate compliance screening from claude-opus-4 to claude-sonnet-4', detail:'420 calls/month on Opus-4 for compliance screening workflows returning avg 180 output tokens. Reasoning complexity score: 44/100 — below Opus-4 selection threshold (80). Sonnet-4 equivalent on this task class. Rerouting requires prompt review to confirm output quality parity.', saving:'Annual saving: $88,200'},
+  {p:'p1', title:'Enable Anthropic prompt caching on system prompts >500 tokens', detail:'14 API keys transmitting static system prompts >3,000 tokens on every request. Cache hit rate currently 0%. Anthropic prompt caching provides 90% cost reduction on cached input tokens. Breakeven at 1.25 repetitions — all 14 keys exceed this threshold.', saving:'Annual saving: $25,200'},
+  {p:'p2', title:'Implement sliding window context truncation — risk-ops research', detail:'Risk-ops replaying full conversation history (avg 28K tokens) per turn. Final 3 turns account for >80% of reasoning load. Sliding window (last 12K + summary) reduces input tokens by 57% with negligible quality impact on attribution tasks.', saving:'Annual saving: $21,600'},
+  {p:'p2', title:'Reduce average context retention from 28K to 10K tokens', detail:'Context retention policy across teams averages 28K tokens. Industry benchmark for similar workloads: 8–12K with rolling summarisation. Implementing org-wide context retention limit of 12K tokens with summarisation pipeline reduces input cost by 40% across all non-research workloads.', saving:'Annual saving: $18,840'},
+  {p:'p2', title:'Revoke 2 stale API keys and implement 30-day rotation policy', detail:'2 API keys with 0 calls in 47+ days remain active. Active unused credentials expand attack surface. Recommend immediate revocation and implementation of automated 30-day rotation policy with 7-day warning notifications to key owners.', saving:'Risk mitigation — no cost impact'},
+  {p:'p3', title:'Consolidate model portfolio from 8 to 4 approved models', detail:'8 distinct models in active use across 6 teams. Recommended portfolio: claude-sonnet-4 (primary), gpt-4.1 (secondary), claude-haiku-3.5 / gemini-1.5-flash (high-volume). Reduces vendor management overhead, simplifies SLA tracking, and consolidates committed-use spend for better discount negotiation.', saving:'Indirect: $15,000–20,000 in committed-use discount improvement'},
+  {p:'p3', title:'Implement pre-approval gate for batch inference jobs >$500', detail:'Batch PnL reprocessing job on 06 May consumed $1,840 without budget approval. Approval workflow bypassed. Implementing soft cap in batch scheduler with override-plus-reason-code for jobs above $500 threshold closes control gap identified in incident review.', saving:'Controls improvement — prevents future unplanned spend'},
+];
+
+// ═══════════════════════════════════════
+// RENDER FUNCTIONS
+// ═══════════════════════════════════════
+function fmtK(n) { return n >= 1000 ? (n/1000).toFixed(1)+'k' : n.toString(); }
+function fmtM(n) { return n >= 1e6 ? (n/1e6).toFixed(1)+'M' : fmtK(n); }
+
+function renderAttribution() {
+  const tbody = document.getElementById('teamTableBody');
+  const total = TEAMS.reduce((s,t) => s+t.spend, 0);
+  tbody.innerHTML = TEAMS.map(t => {
+    const pct = ((t.spend/total)*100).toFixed(1);
+    const wowCls = t.wow > 0 ? 'red' : 'green';
+    const wowSign = t.wow > 0 ? '+' : '';
+    const statusMap = {over:'tag-red', watch:'tag-amber', normal:'tag-gray'};
+    const statusLabel = {over:'over budget', watch:'watch', normal:'on track'};
+    return `<tr>
+      <td><strong>${t.name}</strong></td>
+      <td style="color:var(--text2)">${t.cc}</td>
+      <td>${t.calls.toLocaleString()}</td>
+      <td>${fmtM(t.tin*1000)}</td>
+      <td>${fmtM(t.tout*1000)}</td>
+      <td><strong>$${t.spend.toLocaleString()}</strong></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          ${pct}%
+          <div style="width:50px;height:3px;background:var(--border2);border-radius:2px">
+            <div style="width:${pct}%;height:100%;background:var(--accent);border-radius:2px"></div>
+          </div>
+        </div>
+      </td>
+      <td style="color:var(--text2)">$${(t.spend/t.calls).toFixed(4)}</td>
+      <td><span style="color:var(--${wowCls})">${wowSign}${t.wow}%</span></td>
+      <td><span class="tag ${statusMap[t.status]}">${statusLabel[t.status]}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderDecisionLog() {
+  const el = document.getElementById('decisionLog');
+  el.innerHTML = ROUTING_DECISIONS.map(d => {
+    const facs = [
+      {name:'Reasoning complexity', w:d.factors.reasoning, weight:'35%'},
+      {name:'Context fit',          w:d.factors.context,   weight:'25%'},
+      {name:'Latency sensitivity',  w:d.factors.latency,   weight:'20%'},
+      {name:'Cost sensitivity',     w:d.factors.cost,       weight:'20%'},
+    ];
+    return `<div class="decision-entry ${d.type}">
+      <div class="decision-header">
+        <div>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:0.08em">${d.team} · ${d.usecase}</span>
+          <div class="decision-model">→ ${d.model}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="decision-cost">${d.cost}/call</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:2px">confidence: ${d.confidence}%</div>
+        </div>
+      </div>
+      <div class="decision-factors">
+        ${facs.map(f => `
+          <div class="factor-row">
+            <span class="factor-name">${f.name} (${f.weight})</span>
+            <div class="factor-bar-wrap"><div class="factor-bar" style="width:${f.w}%"></div></div>
+            <span class="factor-weight">${f.w}</span>
+          </div>`).join('')}
+      </div>
+      <div class="decision-reason">
+        ${d.reason}
+        <div class="rejected-models">
+          <span style="font-size:10px;color:var(--text3)">Rejected:</span>
+          ${d.rejected.map(r => `<span class="tag tag-gray">${r}</span>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderRoutingTable() {
+  const tbody = document.getElementById('routingTableBody');
+  const confMap = {HIGH:'tag-green', MED:'tag-amber'};
+  tbody.innerHTML = ROUTING_OPS.map(r => `<tr>
+    <td>${r.usecase}</td>
+    <td><span class="tag tag-red">${r.current}</span></td>
+    <td>${r.calls.toLocaleString()}</td>
+    <td>${r.avgin.toLocaleString()}</td>
+    <td>${r.avgout.toLocaleString()}</td>
+    <td>$${r.spend.toLocaleString()}</td>
+    <td><span class="tag tag-green">${r.rec}</span></td>
+    <td><strong style="color:var(--green)">$${r.saving.toLocaleString()}</strong></td>
+    <td><span class="tag ${confMap[r.conf]}">${r.conf}</span></td>
+  </tr>`).join('');
+}
+
+function renderWaste() {
+  const el = document.getElementById('wasteList');
+  el.innerHTML = WASTE_PATTERNS.map(w => `
+    <div class="waste-item">
+      <div class="waste-icon">${w.icon}</div>
+      <div class="waste-body">
+        <div class="waste-title">${w.title}</div>
+        <div class="waste-desc">${w.desc}</div>
+        <div class="waste-saving">${w.saving}</div>
+      </div>
+    </div>`).join('');
+}
+
+function renderVendorTable() {
+  const tbody = document.getElementById('vendorTableBody');
+  tbody.innerHTML = VENDORS.map(v => {
+    const cheapest = Math.min(...VENDORS.map(x=>x.in));
+    const isCheap = v.in <= cheapest * 1.5;
+    return `<tr>
+      <td><strong>${v.model}</strong></td>
+      <td><span class="tag tag-gray">${v.provider}</span></td>
+      <td style="color:${isCheap?'var(--green)':'var(--text)'}">$${v.in}</td>
+      <td>$${v.out}</td>
+      <td style="color:var(--text2)">${v.ctx}</td>
+      <td style="color:var(--text2)">${v.cache ? '$'+v.cache : '—'}</td>
+      <td>${v.lat.toLocaleString()}ms</td>
+      <td style="color:var(--text2)">${v.p99.toLocaleString()}ms</td>
+      <td><strong>$${v.burn.toLocaleString()}</strong></td>
+      <td><span class="tag tag-accent">${v.tag}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderGovernance() {
+  const alertEl = document.getElementById('alertList');
+  alertEl.innerHTML = ALERTS.map(a => `
+    <div class="alert-item">
+      <div class="alert-dot ad-${a.sev}"></div>
+      <div class="alert-content">
+        <div class="alert-title">${a.title}</div>
+        <div class="alert-desc">${a.desc}</div>
+      </div>
+      <div class="alert-time">${a.time}</div>
+    </div>`).join('');
+
+  const prolif = document.getElementById('prolifBody');
+  prolif.innerHTML = PROLIF_DATA.map(p => {
+    const statusMap = {approved:'tag-green', review:'tag-amber', flagged:'tag-red'};
+    return `<tr>
+      <td><strong>${p.model}</strong></td>
+      <td>${p.teams}</td>
+      <td>${p.calls.toLocaleString()}</td>
+      <td>$${p.spend.toLocaleString()}</td>
+      <td><span class="tag ${statusMap[p.status]}">${p.status}</span></td>
+    </tr>`;
+  }).join('');
+
+  const keyEl = document.getElementById('keyAuditBody');
+  keyEl.innerHTML = KEY_AUDIT.map(k => {
+    const stMap = {active:'tag-green', stale:'tag-red'};
+    const action = k.status === 'stale' ? '<span style="color:var(--red);font-family:var(--mono);font-size:10px;font-weight:600">REVOKE</span>' : '<span style="color:var(--text3);font-family:var(--mono);font-size:10px">—</span>';
+    return `<tr>
+      <td style="font-family:var(--mono)">${k.id}</td>
+      <td>${k.owner}</td>
+      <td>${k.team}</td>
+      <td style="color:${k.status==='stale'?'var(--red)':'var(--text2)'};font-family:var(--mono)">${k.last}</td>
+      <td>${k.calls.toLocaleString()}</td>
+      <td>${k.spend > 0 ? '$'+k.spend.toLocaleString() : '—'}</td>
+      <td><span class="tag ${stMap[k.status]}">${k.status}</span></td>
+      <td>${action}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderOptimization() {
+  const el = document.getElementById('recList');
+  el.innerHTML = RECS.map(r => `
+    <div class="rec-item">
+      <div class="rec-priority ${r.p}">${r.p.replace('p','P')}</div>
+      <div class="rec-body">
+        <div class="rec-title">${r.title}</div>
+        <div class="rec-detail">${r.detail}</div>
+        <div class="rec-saving">${r.saving}</div>
+      </div>
+    </div>`).join('');
+}
+
+function showIncident(id, btn) {
+  document.querySelectorAll('.inc-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const inc = INCIDENTS[id];
+  const el = document.getElementById('incidentDisplay');
+  el.innerHTML = `
+    <div class="inc-header">
+      <div class="inc-severity">${inc.sev}</div>
+      <div class="inc-title">${inc.title}</div>
+      <div class="inc-time">${inc.time}</div>
+    </div>
+    <div class="failover-steps">
+      ${inc.steps.map(s => `
+        <div class="failover-step">
+          <div class="step-num">${s.n}</div>
+          <div class="step-text">${s.text}</div>
+        </div>`).join('')}
+    </div>
+    <div class="impact-grid">
+      ${inc.impact.map(i => `
+        <div class="impact-box">
+          <div class="impact-label">${i.label}</div>
+          <div class="impact-val">${i.val}</div>
+          <div class="impact-sub">${i.sub}</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ═══════════════════════════════════════
+// CHARTS
+// ═══════════════════════════════════════
+let charts = {};
+function destroyChart(id) { if(charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function renderCharts() {
+  const mono = "'IBM Plex Mono', monospace";
+  const gridColor = 'rgba(30,37,48,0.8)';
+  const textColor = '#6b7a8d';
+
+  destroyChart('teamChart');
+  charts.teamChart = new Chart(document.getElementById('teamChart'), {
+    type: 'bar',
+    data: {
+      labels: TEAMS.map(t => t.name),
+      datasets: [{
+        label: 'Spend',
+        data: TEAMS.map(t => t.spend),
+        backgroundColor: ['#ff4757','#00d4ff','#00e5a0','#7c6af7','#ffb020','#6b7a8d'],
+        borderRadius: 1, borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: {display:false}, tooltip: {callbacks:{label:c=>'$'+c.raw.toLocaleString()}} },
+      scales: {
+        x: { grid:{color:gridColor}, ticks:{color:textColor, font:{family:mono, size:10}} },
+        y: { grid:{color:gridColor}, ticks:{color:textColor, font:{family:mono, size:10}, callback:v=>'$'+v.toLocaleString()} }
+      }
+    }
+  });
+
+  destroyChart('modelChart');
+  charts.modelChart = new Chart(document.getElementById('modelChart'), {
+    type: 'doughnut',
+    data: {
+      labels: VENDORS.slice(0,6).map(v=>v.model),
+      datasets: [{
+        data: VENDORS.slice(0,6).map(v=>v.burn),
+        backgroundColor:['#ff4757','#00d4ff','#00e5a0','#7c6af7','#ffb020','#3d4a58'],
+        borderWidth: 1, borderColor: '#0a0c0f'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>c.label+': $'+c.raw.toLocaleString()}} },
+      cutout: '65%'
+    }
+  });
+
+  destroyChart('trendChart');
+  const weeks = ['W-4','W-3','W-2','W-1 (spike)','W0'];
+  const spendData = [8200, 9100, 8800, 14600, 10580];
+  charts.trendChart = new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: weeks,
+      datasets: [{
+        label: 'Weekly spend',
+        data: spendData,
+        borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,0.06)',
+        tension: 0.3, fill: true, pointRadius: 5,
+        pointBackgroundColor: spendData.map((v,i) => i===3?'#ff4757':'#00d4ff'),
+        pointBorderColor: spendData.map((v,i) => i===3?'#ff4757':'#00d4ff'),
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>'$'+c.raw.toLocaleString()}} },
+      scales: {
+        x: { grid:{color:gridColor}, ticks:{color:textColor, font:{family:mono,size:10}} },
+        y: { grid:{color:gridColor}, ticks:{color:textColor, font:{family:mono,size:10}, callback:v=>'$'+v.toLocaleString()} }
+      }
+    }
+  });
+
+  destroyChart('efficiencyChart');
+  charts.efficiencyChart = new Chart(document.getElementById('efficiencyChart'), {
+    type: 'bar',
+    indexAxis: 'y',
+    data: {
+      labels: TEAMS.map(t=>t.name),
+      datasets: [{
+        label: 'Output/Input ratio',
+        data: TEAMS.map(t => parseFloat((t.tout/t.tin).toFixed(2))),
+        backgroundColor: TEAMS.map(t => t.tout/t.tin > 0.45 ? '#00e5a0' : t.tout/t.tin > 0.35 ? '#ffb020' : '#ff4757'),
+        borderRadius: 1
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>c.raw+' ratio'}} },
+      scales: {
+        x: { grid:{color:gridColor}, ticks:{color:textColor, font:{family:mono,size:10}}, min:0, max:0.7 },
+        y: { grid:{color:'transparent'}, ticks:{color:textColor, font:{family:mono,size:10}} }
+      }
+    }
+  });
+
+  destroyChart('contextChart');
+  charts.contextChart = new Chart(document.getElementById('contextChart'), {
+    type: 'bar',
+    data: {
+      labels: ['0–20%','20–40%','40–60%','60–80%','80–95%','>95%'],
+      datasets: [{
+        label: 'Calls',
+        data: [1240, 2180, 2800, 1960, 980, 440],
+        backgroundColor: ['#00e5a0','#00e5a0','#ffb020','#ffb020','#ff4757','#ff4757'],
+        borderRadius: 1
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>c.raw.toLocaleString()+' calls'}} },
+      scales: {
+        x: { grid:{color:gridColor}, ticks:{color:textColor, font:{family:mono,size:10}}, title:{display:true, text:'Context utilisation', color:textColor, font:{family:mono,size:9}} },
+        y: { grid:{color:gridColor}, ticks:{color:textColor, font:{family:mono,size:10}} }
+      }
+    }
+  });
+
+  destroyChart('vendorCostChart');
+  charts.vendorCostChart = new Chart(document.getElementById('vendorCostChart'), {
+    type: 'bar',
+    data: {
+      labels: VENDORS.map(v => v.model.replace('claude-','').replace('gpt-','').replace('gemini-','').replace('mistral-','')),
+      datasets: [
+        { label: 'Input $/1M', data: VENDORS.map(v=>v.in), backgroundColor: '#00d4ff', borderRadius:1 },
+        { label: 'Output $/1M', data: VENDORS.map(v=>v.out), backgroundColor: '#7c6af7', borderRadius:1 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{
+        display:true,
+        labels:{color:textColor, font:{family:mono,size:10}, boxWidth:10, boxHeight:10}
+      }},
+      scales: {
+        x: { grid:{color:gridColor}, ticks:{color:textColor, font:{family:mono,size:9}} },
+        y: { grid:{color:gridColor}, ticks:{color:textColor, font:{family:mono,size:10}, callback:v=>'$'+v} }
+      }
+    }
+  });
+
+  destroyChart('latencyChart');
+  charts.latencyChart = new Chart(document.getElementById('latencyChart'), {
+    type: 'bubble',
+    data: {
+      datasets: VENDORS.map((v,i) => ({
+        label: v.model,
+        data: [{ x: v.lat, y: v.in, r: Math.max(4, Math.sqrt(v.burn/50)) }],
+        backgroundColor: ['#ff4757','#00d4ff','#00e5a0','#7c6af7','#ffb020','#3d4a58','#0099bb','#cc8800'][i]+'99',
+        borderColor: ['#ff4757','#00d4ff','#00e5a0','#7c6af7','#ffb020','#3d4a58','#0099bb','#cc8800'][i],
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>`${c.dataset.label} | lat:${c.parsed.x}ms | $${c.parsed.y}/1M`}} },
+      scales: {
+        x: { grid:{color:gridColor}, ticks:{color:textColor, font:{family:mono,size:10}}, title:{display:true,text:'avg latency (ms)',color:textColor,font:{family:mono,size:9}} },
+        y: { grid:{color:gridColor}, ticks:{color:textColor, font:{family:mono,size:10}}, title:{display:true,text:'input cost $/1M',color:textColor,font:{family:mono,size:9}} }
+      }
+    }
+  });
+
+  destroyChart('forecastChart');
+  const months = ['Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May'];
+  const base = [44000,47000,51000,55000,60000,64000,70000,75000,81000,88000,95000,103000];
+  const opt =  [44000,42000,40000,38000,37000,36000,35500,35000,34500,34000,33500,33000];
+  charts.forecastChart = new Chart(document.getElementById('forecastChart'), {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: [
+        { label:'Without optimisation', data:base, borderColor:'#ff4757', backgroundColor:'rgba(255,71,87,0.05)', tension:0.4, fill:true, pointRadius:3 },
+        { label:'With optimisation', data:opt, borderColor:'#00e5a0', backgroundColor:'rgba(0,229,160,0.06)', tension:0.4, fill:true, pointRadius:3, borderDash:[4,3] }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{display:true, labels:{color:textColor, font:{family:mono,size:10}, boxWidth:10}} },
+      scales: {
+        x: { grid:{color:gridColor}, ticks:{color:textColor, font:{family:mono,size:10}} },
+        y: { grid:{color:gridColor}, ticks:{color:textColor, font:{family:mono,size:10}, callback:v=>'$'+(v/1000).toFixed(0)+'K'} }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════
+// NAV + SECTION SWITCHING
+// ═══════════════════════════════════════
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('s-'+id).classList.add('active');
+  const tabs = ['attribution','routing','waste','vendor','governance','incident','optimize'];
+  document.querySelectorAll('.nav-tab')[tabs.indexOf(id)].classList.add('active');
+  setTimeout(renderCharts, 50);
+}
+
+// ═══════════════════════════════════════
+// FINANCE MODE
+// ═══════════════════════════════════════
+let financeOn = false;
+function toggleFinance() {
+  financeOn = !financeOn;
+  document.getElementById('fin-toggle').classList.toggle('on', financeOn);
+  document.querySelectorAll('.fin-panel').forEach(p => p.classList.toggle('visible', financeOn));
+}
+
+// ═══════════════════════════════════════
+// AI GOVERNANCE REPORT
+// ═══════════════════════════════════════
+async function runGovernanceReport() {
+  const btn = document.getElementById('reportBtn');
+  const icon = document.getElementById('reportBtnIcon');
+  btn.disabled = true;
+  icon.outerHTML = '<span class="spinner" id="reportBtnIcon"></span>';
+
+  const prompt = `You are the AI Operations Manager at Tower Research Capital, a leading quantitative trading firm. Prepare a governance briefing for the Global Head of AI (Ramit) and CTO covering the firm's AI platform economics for the past 30 days.
+
+Actual data:
+- Total API spend: $41,280 across 9,600 calls, 8 models, 6 teams
+- Largest cost centre: algo-research ($18,400, +22% MoM) — over Q2 budget by 22.6%
+- Routing optimisation opportunity: $11,340 (27.5% of spend) — primary: compliance screening on claude-opus-4 ($7,350 recoverable to sonnet-4), market summarisation on gpt-4.1 ($6,630 recoverable to gemini-flash)
+- Prompt waste: 340M tokens ($8,740/month) — top drivers: duplicate retrieval chunks, 0% cache hit rate on static system prompts, 28K avg context retention (target: 10-12K)
+- Model proliferation: 8 models active (target: 4). mistral-large detected in compliance without data governance approval.
+- API key audit: 2 stale keys (0 calls in 47+ and 62+ days) still active
+- Committed-use: $30K Anthropic commitment at 84% utilisation — $4,800 underrun risk in Q2
+- Annualised recoverable: $186,480 across routing + prompt efficiency initiatives
+- Incident this period: unscheduled batch job (risk-ops, $1,840) bypassed pre-approval control
+
+Format exactly as follows:
+
+EXECUTIVE SUMMARY
+[2-3 sentences. Quantified. No hedging.]
+
+FINDING 1: [title]
+[2 sentences. Exact numbers. Root cause.]
+Recommendation: [specific action]
+Impact: [dollar figure or % improvement]
+
+FINDING 2: [title]
+...continue through FINDING 5...
+
+GOVERNANCE CONTROLS RECOMMENDED
+• [one sentence each, max 3 bullets, specific and implementable]
+
+Write for a quantitative trading firm audience. Precise. No marketing language. Every claim backed by a number from the data above.`;
+
+  const out = document.getElementById('reportOutput');
+  out.innerHTML = '<div class="ai-report-box" style="color:var(--text2)">Generating...</div>';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{role:'user', content: prompt}]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.[0]?.text || 'No response received.';
+    out.innerHTML = `<div class="ai-report-box">${text}</div>`;
+  } catch(e) {
+    out.innerHTML = `<div class="ai-report-box" style="color:var(--red)">API error: ${e.message}</div>`;
+  }
+
+  btn.disabled = false;
+  document.getElementById('reportBtnIcon').outerHTML = '<span id="reportBtnIcon">▶</span>';
+  document.getElementById('reportBtn').innerHTML = '<span id="reportBtnIcon">▶</span> Regenerate report';
+}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+function init() {
+  renderAttribution();
+  renderDecisionLog();
+  renderRoutingTable();
+  renderWaste();
+  renderVendorTable();
+  renderGovernance();
+  renderOptimization();
+  showIncident('outage', document.querySelector('.inc-btn.active'));
+  renderCharts();
+
+  // Header live stats
+  const total = TEAMS.reduce((s,t)=>s+t.spend,0);
+  document.getElementById('hdr-spend').textContent = '$'+total.toLocaleString();
+  document.getElementById('hdr-calls').textContent = TEAMS.reduce((s,t)=>s+t.calls,0).toLocaleString();
+  document.getElementById('hdr-saving').textContent = '$11,340';
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
