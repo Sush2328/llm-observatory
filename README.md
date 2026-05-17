@@ -10,11 +10,11 @@ Built to explore a problem I kept running into: as enterprise AI adoption accele
 
 Enterprise AI adoption introduces a class of operational challenges that most observability tooling doesn't address well:
 
-- **Uncontrolled inference spend** — API costs accumulate across teams with no attribution or chargeback framework
-- **Weak workload routing** — premium reasoning models handle tasks that don't require them, inflating cost-per-inference
-- **Prompt inefficiency** — duplicate retrieval chunks, oversized system prompts, and excessive context retention waste significant token budget
-- **Provider concentration risk** — over-reliance on a single provider creates operational exposure during outages or pricing changes
-- **Routing opacity** — model selection decisions are implicit, making cost optimisation and audit trails difficult
+- **Uncontrolled inference spend** - API costs accumulate across teams with no attribution or chargeback framework
+- **Weak workload routing** - premium reasoning models handle tasks that don't require them, inflating cost-per-inference
+- **Prompt inefficiency** - duplicate retrieval chunks, oversized system prompts, and excessive context retention waste significant token budget
+- **Provider concentration risk** - over-reliance on a single provider creates operational exposure during outages or pricing changes
+- **Routing opacity** - model selection decisions are implicit, making cost optimisation and audit trails difficult
 
 ---
 
@@ -94,12 +94,12 @@ Routing decisions are scored across four weighted factors:
 
 | Factor | Weight | Rationale |
 |---|---|---|
-| Estimated workload complexity | 35% | Primary driver — reasoning-heavy tasks justify premium models |
+| Estimated workload complexity | 35% | Primary driver - reasoning-heavy tasks justify premium models |
 | Context requirement | 25% | Large contexts favour providers with wider windows and better caching |
 | Latency sensitivity | 20% | SLA-critical workloads require faster inference paths |
 | Cost sensitivity | 20% | Budget-constrained workloads route to cheaper models when quality is equivalent |
 
-Every routing decision logs: selected model, score, rejected alternatives with scores, projected cost delta, and confidence level. This makes routing auditable and reversible — important for governance.
+Every routing decision logs: selected model, score, rejected alternatives with scores, projected cost delta, and confidence level. This makes routing auditable and reversible - important for governance.
 
 **Example output:**
 
@@ -146,10 +146,10 @@ Rejected alternatives:
 
 Running the platform against simulated enterprise workloads surfaced patterns I'd expect to find in real deployments:
 
-- **Duplicate retrieval chunks** — retrieval pipelines injecting the same document segments across multiple calls. Common when chunking is done without deduplication. Estimated waste: 18% of token budget on affected workloads.
-- **Static system prompt repetition** — teams sending 3,000+ token system prompts on every request with 0% cache utilisation. Prompt caching at 90% discount would recover significant spend.
-- **Context over-retention** — conversation history replayed in full rather than summarised. Average context: 28K tokens on workloads where the last 3 turns carry >80% of reasoning load.
-- **Premium model over-specification** — high-cost models returning <200 output tokens on classification tasks. The reasoning capacity is not being used; the cost is.
+- **Duplicate retrieval chunks** - retrieval pipelines injecting the same document segments across multiple calls. Common when chunking is done without deduplication. Estimated waste: 18% of token budget on affected workloads.
+- **Static system prompt repetition** - teams sending 3,000+ token system prompts on every request with 0% cache utilisation. Prompt caching at 90% discount would recover significant spend.
+- **Context over-retention** - conversation history replayed in full rather than summarised. Average context: 28K tokens on workloads where the last 3 turns carry >80% of reasoning load.
+- **Premium model over-specification** - high-cost models returning <200 output tokens on classification tasks. The reasoning capacity is not being used; the cost is.
 
 ---
 
