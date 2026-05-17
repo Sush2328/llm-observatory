@@ -155,11 +155,11 @@ Running the platform against simulated enterprise workloads surfaced patterns I'
 
 ## Governance Features
 
-- **Team-level chargeback attribution** — spend broken down by cost centre with per-call unit economics
-- **API key audit** — flags stale keys (0 calls in 30+ days) that represent unnecessary credential exposure
-- **Model proliferation tracking** — monitors number of distinct models in active use; high proliferation increases vendor management overhead
-- **Anomaly detection** — flags week-over-week spend spikes, unplanned batch jobs, and budget threshold breaches
-- **Incident simulation** — models provider outage, latency degradation, budget breach, and context overflow scenarios with failover routing and estimated business impact
+- **Team-level chargeback attribution** - spend broken down by cost centre with per-call unit economics
+- **API key audit** - flags stale keys (0 calls in 30+ days) that represent unnecessary credential exposure
+- **Model proliferation tracking** - monitors number of distinct models in active use; high proliferation increases vendor management overhead
+- **Anomaly detection** - flags week-over-week spend spikes, unplanned batch jobs, and budget threshold breaches
+- **Incident simulation** - models provider outage, latency degradation, budget breach, and context overflow scenarios with failover routing and estimated business impact
 
 ---
 
@@ -167,11 +167,11 @@ Running the platform against simulated enterprise workloads surfaced patterns I'
 
 This is an operational prototype, not a production system. Important caveats:
 
-- **Simulated workloads** — usage data is synthetically generated to represent realistic enterprise patterns; no real API keys or production data used
-- **Pricing snapshots** — model pricing accurate as of May 2026; rates change frequently and the platform does not auto-update
-- **Routing heuristics are generalised** — the weighting model is a reasonable approximation; real deployments would calibrate weights per organisation and workload type
-- **No authentication layer** — intended as a prototype/demo; production deployment would require auth, role-based access, and audit logging
-- **Frontend-only** — attribution and routing logic runs client-side on simulated data; a production version would ingest real API logs via a backend pipeline
+- **Simulated workloads** - usage data is synthetically generated to represent realistic enterprise patterns; no real API keys or production data used
+- **Pricing snapshots** - model pricing accurate as of May 2026; rates change frequently and the platform does not auto-update
+- **Routing heuristics are generalised** - the weighting model is a reasonable approximation; real deployments would calibrate weights per organisation and workload type
+- **No authentication layer** - intended as a prototype/demo; production deployment would require auth, role-based access, and audit logging
+- **Frontend-only** - attribution and routing logic runs client-side on simulated data; a production version would ingest real API logs via a backend pipeline
 
 ---
 
